@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+frontend/dist/
+
+# Logs
+*.log
+.codex-*.log
+.codex-*.err.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime/cache files
+.DS_Store
+Thumbs.db
+.vite/
+coverage/
+
+# Editor/project local files
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
