@@ -283,6 +283,7 @@ The schema enables Row Level Security on tables. The React app does not access S
 Do commit:
 
 - `README.md`
+- `LICENSE`
 - `.env.example`
 - source files in `backend/`, `frontend/src/`, and `scripts/`
 - `package.json`
@@ -307,3 +308,7 @@ git status
 ```
 
 Review the staged files carefully before committing.
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE` for details.
