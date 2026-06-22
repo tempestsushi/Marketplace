@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { qCategoriesList } from '../queries/categories.js';
-import { qPublicProductsList, qPublicProductDetail, qProductImages } from '../queries/publicProducts.js';
+import { qPublicProductsCount, qPublicProductsList, qPublicProductDetail, qProductImages } from '../queries/publicProducts.js';
 
 function normalizeConditionForUi(dbCondition) {
   const c = String(dbCondition || '').toLowerCase();
@@ -38,7 +38,9 @@ export function createCatalogRoutes() {
 
   router.get('/products', async (req, res) => {
     try {
-      const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 500);
+      const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 100);
+      const page = Math.min(Math.max(Number(req.query.page) || 1, 1), 1000);
+      const offset = (page - 1) * limit;
       const search = req.query.search ? String(req.query.search) : '';
       const category = req.query.category ? String(req.query.category) : '';
       const condition = req.query.condition ? String(req.query.condition).toLowerCase() : '';
@@ -46,12 +48,12 @@ export function createCatalogRoutes() {
       const normalizedCategory = category && category !== 'All' ? category : '';
       const normalizedCondition = condition && condition !== 'all' ? condition : '';
       const normalizedSort = sort === 'price_asc' || sort === 'price_desc' ? sort : 'newest';
-      const values = [search, normalizedCategory, normalizedCondition, normalizedSort, limit];
+      const values = [search, normalizedCategory, normalizedCondition, normalizedSort, limit, offset];
 
-      const { rows } = await pool.query(
-        qPublicProductsList(),
-        values
-      );
+      const [{ rows }, countRes] = await Promise.all([
+        pool.query(qPublicProductsList(), values),
+        pool.query(qPublicProductsCount(), [search, normalizedCategory, normalizedCondition]),
+      ]);
 
       const normalized = rows.map((r) => ({
         id: r.product_id,
@@ -72,7 +74,18 @@ export function createCatalogRoutes() {
         image: r.image_url || 'https://placehold.co/800x600/F3F4F6/9CA3AF?text=No+Image',
       }));
 
-      res.json({ rows: normalized });
+      const total = Number(countRes.rows[0]?.total || 0);
+      const totalPages = Math.max(Math.ceil(total / limit), 1);
+
+      res.json({
+        rows: normalized,
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      });
     } catch (e) {
       res.status(500).json({ error: String(e?.message || e) });
     }

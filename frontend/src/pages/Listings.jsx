@@ -1,7 +1,7 @@
 // Listings page — browse all listings with search, filter and sort
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertCircle, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import ListingCard from '../components/ListingCard';
 import SkeletonCard from '../components/SkeletonCard';
 import SearchBar from '../components/SearchBar';
@@ -13,6 +13,13 @@ function getInitialFilter(searchParams, key, fallback) {
   return searchParams.get(key) || fallback;
 }
 
+function getInitialPage(searchParams) {
+  const page = Number(searchParams.get('page') || 1);
+  return Number.isFinite(page) && page > 0 ? page : 1;
+}
+
+const PAGE_SIZE = 12;
+
 function Listings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -21,8 +28,16 @@ function Listings() {
   const [category, setCategory] = useState(getInitialFilter(searchParams, 'category', 'All'));
   const [condition, setCondition] = useState(getInitialFilter(searchParams, 'condition', 'All'));
   const [sort, setSort] = useState(getInitialFilter(searchParams, 'sort', 'newest'));
+  const [page, setPage] = useState(getInitialPage(searchParams));
   const [listings, setListings] = useState([]);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
   const debouncedSearch = useDebouncedValue(search.trim(), 350);
+  const didMountFilters = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -35,19 +50,38 @@ function Listings() {
           category,
           condition,
           sort,
-          limit: 120,
+          page,
+          limit: PAGE_SIZE,
         });
         if (!alive) return;
         setListings(resp.rows || []);
+        setPagination({
+          total: Number(resp.total || 0),
+          totalPages: Number(resp.totalPages || 1),
+          hasNextPage: Boolean(resp.hasNextPage),
+          hasPrevPage: Boolean(resp.hasPrevPage),
+        });
+        if (Number(resp.total || 0) > 0 && page > Number(resp.totalPages || 1)) {
+          setPage(Number(resp.totalPages || 1));
+        }
       } catch (e) {
         if (!alive) return;
         setListings([]);
+        setPagination({ total: 0, totalPages: 1, hasNextPage: false, hasPrevPage: false });
         setError(e?.message || 'Could not load listings');
       } finally {
         if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
+  }, [category, condition, debouncedSearch, page, sort]);
+
+  useEffect(() => {
+    if (!didMountFilters.current) {
+      didMountFilters.current = true;
+      return;
+    }
+    setPage(1);
   }, [category, condition, debouncedSearch, sort]);
 
   useEffect(() => {
@@ -56,8 +90,9 @@ function Listings() {
     if (category !== 'All') next.category = category;
     if (condition !== 'All') next.condition = condition;
     if (sort !== 'newest') next.sort = sort;
+    if (page > 1) next.page = String(page);
     setSearchParams(next, { replace: true });
-  }, [category, condition, debouncedSearch, setSearchParams, sort]);
+  }, [category, condition, debouncedSearch, page, setSearchParams, sort]);
 
   const hasActiveFilters = category !== 'All' || condition !== 'All' || search !== '' || sort !== 'newest';
 
@@ -66,13 +101,21 @@ function Listings() {
     setCategory('All');
     setCondition('All');
     setSort('newest');
+    setPage(1);
     setSearchParams({});
   }
 
   function removeFilter(filterName) {
+    setPage(1);
     if (filterName === 'category') { setCategory('All'); setSearchParams({}); }
     if (filterName === 'condition') setCondition('All');
     if (filterName === 'search') setSearch('');
+  }
+
+  function goToPage(nextPage) {
+    const safePage = Math.min(Math.max(nextPage, 1), pagination.totalPages || 1);
+    setPage(safePage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   return (
@@ -89,7 +132,7 @@ function Listings() {
             <div className="text-sm text-gray-500">
               {!loading && (
                 <>
-                  <span className="font-semibold text-gray-900">{listings.length}</span> result{listings.length === 1 ? '' : 's'}
+                  <span className="font-semibold text-gray-900">{pagination.total}</span> result{pagination.total === 1 ? '' : 's'}
                 </>
               )}
             </div>
@@ -107,7 +150,10 @@ function Listings() {
               <span className="text-xs font-semibold text-gray-500">Category</span>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setPage(1);
+                }}
                 className="border border-[#ded6ca] bg-white px-3 py-2 text-sm
                   transition-all focus:outline-none focus:ring-2 focus:ring-[#304826]"
               >
@@ -119,7 +165,10 @@ function Listings() {
               <span className="text-xs font-semibold text-gray-500">Condition</span>
               <select
                 value={condition}
-                onChange={(e) => setCondition(e.target.value)}
+                onChange={(e) => {
+                  setCondition(e.target.value);
+                  setPage(1);
+                }}
                 className="border border-[#ded6ca] bg-white px-3 py-2 text-sm
                   transition-all focus:outline-none focus:ring-2 focus:ring-[#304826]"
               >
@@ -131,7 +180,10 @@ function Listings() {
               <span className="text-xs font-semibold text-gray-500">Sort</span>
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value)}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setPage(1);
+                }}
                 className="border border-[#ded6ca] bg-white px-3 py-2 text-sm
                   transition-all focus:outline-none focus:ring-2 focus:ring-[#304826]"
               >
@@ -171,7 +223,7 @@ function Listings() {
                 {sort !== 'newest' && (
                   <span className="flex items-center gap-1 bg-[#e4ded2] px-3 py-1 text-xs font-medium text-[#304826]">
                     {SORT_OPTIONS.find((option) => option.value === sort)?.label || 'Custom sort'}
-                    <button type="button" onClick={() => setSort('newest')} aria-label="Reset sort"><X size={12} /></button>
+                    <button type="button" onClick={() => { setSort('newest'); setPage(1); }} aria-label="Reset sort"><X size={12} /></button>
                   </span>
                 )}
                 <button
@@ -216,11 +268,42 @@ function Listings() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {listings.map((listing) => (
-              <ListingCard key={listing.id} {...listing} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {listings.map((listing) => (
+                <ListingCard key={listing.id} {...listing} />
+              ))}
+            </div>
+
+            {pagination.totalPages > 1 && (
+              <div className="mt-8 flex flex-col items-center justify-between gap-3 border border-[#ded6ca] bg-[#fffdf9] px-4 py-4 sm:flex-row">
+                <p className="text-sm text-[#596352]">
+                  Page <span className="font-bold text-[#24301f]">{page}</span> of{' '}
+                  <span className="font-bold text-[#24301f]">{pagination.totalPages}</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={!pagination.hasPrevPage}
+                    onClick={() => goToPage(page - 1)}
+                    className="inline-flex items-center gap-2 border border-[#ded6ca] px-4 py-2 text-sm font-semibold text-[#304826]
+                      transition-colors hover:bg-[#e4ded2] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <ChevronLeft size={16} /> Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!pagination.hasNextPage}
+                    onClick={() => goToPage(page + 1)}
+                    className="inline-flex items-center gap-2 bg-[#304826] px-4 py-2 text-sm font-semibold text-white
+                      transition-colors hover:bg-[#24381d] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>

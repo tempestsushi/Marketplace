@@ -15,7 +15,19 @@ export function qPublicProductsList() {
       case when $4 = 'price_asc' then p.price end asc,
       case when $4 = 'price_desc' then p.price end desc,
       p.created_at desc
-    limit $5;
+    limit $5 offset $6;
+  `;
+}
+
+export function qPublicProductsCount() {
+  return `
+    select count(*) as total
+    from products p
+    left join categories c on c.category_id = p.category_id
+    where p.is_available = true
+      and ($1 = '' or p.title ilike '%' || $1 || '%' or coalesce(p.description, '') ilike '%' || $1 || '%')
+      and ($2 = '' or c.name = $2)
+      and ($3 = '' or p.condition = $3);
   `;
 }
 
