@@ -147,6 +147,42 @@ Default local URLs:
 npm run build
 ```
 
+## Deploy To Vercel
+
+This repo is configured for Vercel with:
+
+- `vercel.json` for the frontend build and route rewrites
+- `api/index.js` and `api/[...path].js` for the Express backend as Vercel Functions
+- `backend/app.js` for the exported Express app
+- `backend/index.js` for local backend development
+
+In Vercel, use these project settings:
+
+```text
+Framework Preset: Vite
+Build Command: npm run build
+Output Directory: frontend/dist
+Install Command: npm install
+```
+
+Add these environment variables in Vercel:
+
+```env
+SUPABASE_DATABASE_URL=""
+SUPABASE_URL=""
+SUPABASE_SERVICE_ROLE_KEY=""
+JWT_SECRET=""
+GOOGLE_CLIENT_ID=""
+VITE_GOOGLE_CLIENT_ID=""
+COOKIE_SECURE=true
+```
+
+Before deploying, run `backend/schema.sql` in Supabase SQL Editor and create the `product-images` and `profile-images` Storage buckets. After deploy, test:
+
+```text
+https://YOUR_PROJECT.vercel.app/api/health
+```
+
 ## Frontend Routes
 
 | Route            | Access      | Purpose                                      |
